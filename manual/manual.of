@@ -1428,7 +1428,7 @@ except inside nested functions.
 A goto can jump to any visible label as long as it does not
 enter into the scope of a local variable.
 A label should not be declared
-where a label with the same name is visible,
+where a previous label with the same name is visible,
 even if this other label has been declared in an enclosing block.
 
 The @Rw{break} statement terminates the execution of a
@@ -3238,7 +3238,7 @@ Values at other positions are not affected.
 
 }
 
-@APIEntry{void lua_createtable (lua_State *L, unsigned nseq, unsigned nrec);|
+@APIEntry{void lua_createtable (lua_State *L, int nseq, int nrec);|
 @apii{0,1,m}
 
 Creates a new empty table and pushes it onto the stack.
@@ -3249,7 +3249,7 @@ the table will have.
 Lua may use these hints to preallocate memory for the new table.
 This preallocation may help performance when you know in advance
 how many elements the table will have.
-Otherwise you can use the function @Lid{lua_newtable}.
+Otherwise you should use the function @Lid{lua_newtable}.
 
 }
 
@@ -3351,7 +3351,7 @@ Returns the previous mode (@id{LUA_GCGEN} or @id{LUA_GCINC}).
 
 @item{@defid{LUA_GCPARAM} (int param, int val)|
 Changes and/or returns the value of a parameter of the collector.
-If @id{val} is negative, the call only returns the current value.
+If @id{val} is -1, the call only returns the current value.
 The argument @id{param} must have one of the following values:
 @description{
 @item{@defid{LUA_GCPMINORMUL}| The minor multiplier. }
@@ -3829,13 +3829,13 @@ This macro may evaluate its arguments more than once.
 
 }
 
-@APIEntry{unsigned (lua_numbertostrbuff) (lua_State *L, int idx,
+@APIEntry{unsigned (lua_numbertocstring) (lua_State *L, int idx,
                                           char *buff);|
 @apii{0,0,-}
 
 Converts the number at acceptable index @id{idx} to a string
 and puts the result in @id{buff}.
-The buffer must have a size of at least @Lid{LUA_N2SBUFFSZ} bytes.
+The buffer must have a size of at least @defid{LUA_N2SBUFFSZ} bytes.
 The conversion follows a non-specified format @see{coercion}.
 The function returns the number of bytes written to the buffer
 (including the final zero),
@@ -3847,7 +3847,6 @@ or zero if the value at @id{idx} is not a number.
 @apii{nargs + 1,nresults|1,-}
 
 Calls a function (or a callable object) in protected mode.
-
 
 Both @id{nargs} and @id{nresults} have the same meaning as
 in @Lid{lua_call}.
@@ -3956,7 +3955,7 @@ This function is equivalent to @Lid{lua_pushcclosure} with no upvalues.
 
 }
 
-@APIEntry{const char *(lua_pushextlstring) (lua_State *L,
+@APIEntry{const char *(lua_pushexternalstring) (lua_State *L,
                 const char *s, size_t len, lua_Alloc falloc, void *ud);|
 @apii{0,1,m}
 
@@ -3997,24 +3996,21 @@ Lua will call @id{falloc} before raising the error.
 
 Pushes onto the stack a formatted string
 and returns a pointer to this string @see{constchar}.
-It is similar to the @ANSI{sprintf},
-but has two important differences.
-First,
-you do not have to allocate space for the result;
-the result is a Lua string and Lua takes care of memory allocation
-(and deallocation, through garbage collection).
-Second,
-the conversion specifiers are quite restricted.
-There are no flags, widths, or precisions.
-The conversion specifiers can only be
+The result is a copy of @id{fmt} with
+each @emph{conversion specifier} replaced by a string representation
+of its respective extra argument.
+A conversion specifier (and its corresponding extra argument) can be
 @Char{%%} (inserts the character @Char{%}),
 @Char{%s} (inserts a zero-terminated string, with no size restrictions),
 @Char{%f} (inserts a @Lid{lua_Number}),
 @Char{%I} (inserts a @Lid{lua_Integer}),
-@Char{%p} (inserts a pointer),
+@Char{%p} (inserts a void pointer),
 @Char{%d} (inserts an @T{int}),
 @Char{%c} (inserts an @T{int} as a one-byte character), and
 @Char{%U} (inserts an @T{unsigned long} as a @x{UTF-8} byte sequence).
+
+Every occurrence of @Char{%} in the string @id{fmt}
+must form a valid conversion specifier.
 
 }
 
@@ -4413,7 +4409,7 @@ for the @Q{newindex} event @see{metatable}.
 @APIEntry{void lua_settop (lua_State *L, int index);|
 @apii{?,?,e}
 
-Accepts any index, @N{or 0},
+Receives any acceptable stack index, @N{or 0},
 and sets the stack top to this index.
 If the new top is greater than the old one,
 then the new elements are filled with @nil.
@@ -4850,6 +4846,7 @@ typedef struct lua_Debug {
   unsigned char nups;         /* (u) number of upvalues */
   unsigned char nparams;      /* (u) number of parameters */
   char isvararg;              /* (u) */
+  unsigned char extraargs;    /* (t) number of extra arguments */
   char istailcall;            /* (t) */
   int ftransfer;              /* (r) index of first value transferred */
   int ntransfer;              /* (r) number of transferred values */
@@ -4936,6 +4933,14 @@ according to how the function was called.
 @item{@id{istailcall}|
 true if this function invocation was called by a tail call.
 In this case, the caller of this level is not in the stack.
+}
+
+@item{@id{extraargs}|
+The number of extra arguments added by the call
+to functions called through @idx{__call} metamethods.
+(Each @idx{__call} metavalue adds a single extra argument,
+the object being called,
+but there may be a chain of @idx{__call} metavalues.)
 }
 
 @item{@id{nups}|
@@ -5045,7 +5050,7 @@ fills in the fields @id{source}, @id{short_src},
 @id{linedefined}, @id{lastlinedefined}, and @id{what};
 }
 
-@item{@Char{t}| fills in the field @id{istailcall};
+@item{@Char{t}| fills in the fields @id{istailcall} and @id{extraargs};
 }
 
 @item{@Char{u}| fills in the fields
@@ -7993,7 +7998,7 @@ returns @fail plus the position of the first invalid byte.
 
 @LibEntry{utf8.offset (s, n [, i])|
 
-Returns the the position of the @id{n}-th character of @id{s}
+Returns the position of the @id{n}-th character of @id{s}
 (counting from byte position @id{i}) as two integers:
 The index (in bytes) where its encoding starts and the
 index (in bytes) where it ends.
@@ -9392,6 +9397,10 @@ If you need to change it,
 declare a local variable with the same name in the loop body.
 }
 
+@item{
+A chain of @id{__call} metamethods can have at most 15 objects.
+}
+
 }
 
 }
@@ -9413,6 +9422,15 @@ Moreover, there were some changes in the parameters themselves.
 @sect2{@title{Incompatibilities in the API}
 
 @itemize{
+
+@item{
+In @Lid{lua_call} and related functions,
+the maximum value for the number of required results
+(@id{nresults}) is 250.
+If you really need a larger value,
+use @Lid{LUA_MULTRET} and then adjust the stack size.
+Previously, this limit was unspecified.
+}
 
 @item{
 @Lid{lua_newstate} has a third parameter,

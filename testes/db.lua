@@ -128,7 +128,7 @@ then
 else
   a=2
 end
-]], {2,3,4,7})
+]], {2,4,7})
 
 
 test([[
@@ -623,6 +623,9 @@ local function f (x)
     print"+"
     end
 end
+
+assert(debug.getinfo(print, 't').istailcall == false)
+assert(debug.getinfo(print, 't').extraargs == 0)
 
 function g(x) return f(x) end
 

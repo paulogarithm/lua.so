@@ -117,6 +117,31 @@ else
     return 1
   ]]
   assert(string.find(res, "xuxu.-main chunk"))
+
+  do   -- tests for error messages about extra arguments from __call
+    local function createobj (n)
+      -- function that raises an error on its n-th argument
+      local code = string.format("argerror %d 'msg'", n)
+      local func = T.makeCfunc(code)
+      -- create a chain of 2 __call objects
+      local M = setmetatable({}, {__call = func})
+      M = setmetatable({}, {__call = M})
+      -- put it as a method for a new object
+      return {foo = M}
+    end
+
+  _G.a = createobj(1)   -- error in first (extra) argument
+  checkmessage("a:foo()", "bad extra argument #1")
+
+  _G.a = createobj(2)   -- error in second (extra) argument
+  checkmessage("a:foo()", "bad extra argument #2")
+
+  _G.a = createobj(3)   -- error in self (after two extra arguments)
+  checkmessage("a:foo()", "bad self")
+
+  _G.a = createobj(4)  -- error in first regular argument (after self)
+  checkmessage("a:foo()", "bad argument #1")
+  end
 end
 
 
@@ -296,7 +321,8 @@ t = nil
 checkmessage(s.."; aaa = bbb + 1", "global 'bbb'")
 checkmessage("local _ENV=_ENV;"..s.."; aaa = bbb + 1", "global 'bbb'")
 checkmessage(s.."; local t = {}; aaa = t.bbb + 1", "field 'bbb'")
-checkmessage(s.."; local t = {}; t:bbb()", "method 'bbb'")
+-- cannot use 'self' opcode
+checkmessage(s.."; local t = {}; t:bbb()", "field 'bbb'")
 
 checkmessage([[aaa=9
 repeat until 3==3

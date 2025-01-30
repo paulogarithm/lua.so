@@ -170,19 +170,27 @@ LUALIB_API void luaL_traceback (lua_State *L, lua_State *L1,
 
 LUALIB_API int luaL_argerror (lua_State *L, int arg, const char *extramsg) {
   lua_Debug ar;
+  const char *argword;
   if (!lua_getstack(L, 0, &ar))  /* no stack frame? */
     return luaL_error(L, "bad argument #%d (%s)", arg, extramsg);
-  lua_getinfo(L, "n", &ar);
-  if (strcmp(ar.namewhat, "method") == 0) {
-    arg--;  /* do not count 'self' */
-    if (arg == 0)  /* error is in the self argument itself? */
-      return luaL_error(L, "calling '%s' on bad self (%s)",
-                           ar.name, extramsg);
+  lua_getinfo(L, "nt", &ar);
+  if (arg <= ar.extraargs)  /* error in an extra argument? */
+    argword =  "extra argument";
+  else {
+    arg -= ar.extraargs;  /* do not count extra arguments */
+    if (strcmp(ar.namewhat, "method") == 0) {  /* colon syntax? */
+      arg--;  /* do not count (extra) self argument */
+      if (arg == 0)  /* error in self argument? */
+        return luaL_error(L, "calling '%s' on bad self (%s)",
+                               ar.name, extramsg);
+      /* else go through; error in a regular argument */
+    }
+    argword = "argument";
   }
   if (ar.name == NULL)
     ar.name = (pushglobalfuncname(L, &ar)) ? lua_tostring(L, -1) : "?";
-  return luaL_error(L, "bad argument #%d to '%s' (%s)",
-                        arg, ar.name, extramsg);
+  return luaL_error(L, "bad %s #%d to '%s' (%s)",
+                       argword, arg, ar.name, extramsg);
 }
 
 
@@ -614,9 +622,9 @@ LUALIB_API void luaL_pushresult (luaL_Buffer *B) {
     resizebox(L, -1, len + 1);  /* adjust box size to content size */
     s = (char*)box->box;  /* final buffer address */
     s[len] = '\0';  /* add ending zero */
-    /* clear box, as 'lua_pushextlstring' will take control over buffer */
+    /* clear box, as Lua will take control of the buffer */
     box->bsize = 0;  box->box = NULL;
-    lua_pushextlstring(L, s, len, allocf, ud);
+    lua_pushexternalstring(L, s, len, allocf, ud);
     lua_closeslot(L, -2);  /* close the box */
     lua_gc(L, LUA_GCSTEP, len);
   }
@@ -921,7 +929,7 @@ LUALIB_API const char *luaL_tolstring (lua_State *L, int idx, size_t *len) {
     switch (lua_type(L, idx)) {
       case LUA_TNUMBER: {
         char buff[LUA_N2SBUFFSZ];
-        lua_numbertostrbuff(L, idx, buff);
+        lua_numbertocstring(L, idx, buff);
         lua_pushstring(L, buff);
         break;
       }
