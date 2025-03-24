@@ -44,6 +44,10 @@
 #define LUA_RAND32
 
 
+/* test stack reallocation with strict address use */
+#define LUAI_STRICT_ADDRESS	1
+
+
 /* memory-allocator control variables */
 typedef struct Memcontrol {
   int failnext;
@@ -90,6 +94,7 @@ LUAI_FUNC void lua_printvalue (struct TValue *v);
 ** Function to print the stack
 */
 LUAI_FUNC void lua_printstack (lua_State *L);
+LUAI_FUNC int lua_printallstack (lua_State *L);
 
 
 /* test for lock/unlock */
@@ -148,9 +153,12 @@ LUA_API void *debug_realloc (void *ud, void *block,
 */
 
 
-/* make stack-overflow tests run faster */
+/*
+** Reduce maximum stack size to make stack-overflow tests run faster.
+** (But value is still large enough to overflow smaller integers.)
+*/
 #undef LUAI_MAXSTACK
-#define LUAI_MAXSTACK   50000
+#define LUAI_MAXSTACK   68000
 
 
 /* test mode uses more stack space */
