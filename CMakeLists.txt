@@ -2,7 +2,7 @@ CMAKE_MINIMUM_REQUIRED(VERSION 3.14) # pi
 
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
-PROJECT(sharedlua)
+PROJECT(sharedlua LANGUAGES C)
 
 ADD_LIBRARY(sharedlua SHARED
     lapi.c
@@ -32,9 +32,7 @@ ADD_LIBRARY(sharedlua SHARED
     lstrlib.c
     ltable.c
     ltablib.c
-    ltests.c
     ltm.c
-    lua.c
     lundump.c
     lutf8lib.c
     lvm.c
@@ -42,6 +40,10 @@ ADD_LIBRARY(sharedlua SHARED
 )
 
 TARGET_INCLUDE_DIRECTORIES(sharedlua PRIVATE .)
+
+IF(WIN32)
+    TARGET_COMPILE_DEFINITIONS(sharedlua PRIVATE LUA_BUILD_AS_DLL)
+ENDIF()
 
 ADD_CUSTOM_COMMAND(TARGET sharedlua POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy
